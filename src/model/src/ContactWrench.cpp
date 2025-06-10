@@ -132,12 +132,27 @@ bool LinkContactWrenches::computeNetWrenches(LinkNetExternalWrenches& netWrenche
 void LinkContactWrenches::addNewContactForLink(const LinkIndex linkIndex, const ContactWrench& newContact)
 {
     m_linkContactWrenches[linkIndex].push_back(newContact);
+
+    // print link contact wrenches
+    std::cout << "Added new contact wrench for link " << linkIndex << ": "
+              << "Contact point: " << newContact.contactPoint().toString() << ", "
+              << "Wrench: " << newContact.contactWrench().toString() << std::endl;
+
 }
 
 bool LinkContactWrenches::addNewContactInFrame(const Model & model,
                                                const FrameIndex frameIndex,
                                                const ContactWrench& ContactInFrame)
 {
+
+    // print frame index
+    std::cout << "Adding new contact in frame index: " << frameIndex << std::endl;
+
+    // print contact point and wrench in frame
+    std::cout << "Contact point in frame: " << ContactInFrame.contactPoint().toString() << std::endl;
+    std::cout << "Contact wrench in frame: " << ContactInFrame.contactWrench().toString() << std::endl;
+
+
     if( !model.isValidFrameIndex(frameIndex) )
     {
         std::stringstream err;
@@ -149,8 +164,14 @@ bool LinkContactWrenches::addNewContactInFrame(const Model & model,
     // Get link_H_frame transform
     iDynTree::Transform link_H_frame = model.getFrameTransform(frameIndex);
 
+    // print transform
+    std::cout << "Link frame transform: " << link_H_frame.toString() << std::endl;
+
     // Get the link of the frame
     LinkIndex linkIndex = model.getFrameLink(frameIndex);
+
+    // print link index
+    std::cout << "Link index: " << linkIndex << std::endl;
 
     if( !model.isValidLinkIndex(linkIndex) )
     {
@@ -164,6 +185,10 @@ bool LinkContactWrenches::addNewContactInFrame(const Model & model,
 
     ContactInLink.contactPoint() = link_H_frame*ContactInFrame.contactPoint();
     ContactInLink.contactWrench() = ContactInFrame.contactWrench();
+
+    // print contact point and wrench in link frame
+    std::cout << "Contact point in link frame: " << ContactInLink.contactPoint().toString() << std::endl;
+    std::cout << "Contact wrench in link frame: " << ContactInLink.contactWrench().toString() << std::endl;
 
     addNewContactForLink(linkIndex,ContactInLink);
 
