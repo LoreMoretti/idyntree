@@ -629,7 +629,7 @@ bool CoriolisMatrixAlgorithm(const Model& model,
                     LinkConstPtr ancestorParentLink
                         = traversal.getParentLinkFromLinkIndex(ancestorLinkIndex);
                     LinkIndex ancestorParentIndex = ancestorParentLink->getIndex();
-                    assert(ancestorParentIndex == 0); // base link
+                    assert(ancestorParentIndex == traversal.getBaseLink()->getIndex());
 
                     Transform otherLink_X_parentLink
                         = linkPos(ancestorLinkIndex).inverse() * linkPos(ancestorParentIndex);
