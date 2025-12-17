@@ -1273,6 +1273,27 @@ void testFloatingBaseFrameConsistency(std::string modelFilePath,
         = toEigen(Jacobian_rootLink_with_l_sole_base) * toEigen(nu_with_l_sole_base);
 
     ASSERT_EQUAL_VECTOR(rootLink_vel_with_l_foot_base, rootLink_vel_with_l_sole_base);
+
+    // Check Coriolis algorithm consistency
+    const size_t nrOfDofs = dynComp.getNrOfDegreesOfFreedom();
+    const size_t matSize = 6 + nrOfDofs;
+    std::cout << "Coriolis Matrix start" << std::endl;
+
+    // Get all three matrices from function being tested (i.e., getCoriolisAndMassMatrices)
+    MatrixDynSize coriolisMatrix(matSize, matSize);
+    MatrixDynSize massMatrix(matSize, matSize);
+    MatrixDynSize massMatrixDerivative(matSize, matSize);
+    ok = dynComp.getCoriolisAndMassMatrices(coriolisMatrix, massMatrix, massMatrixDerivative);
+    ASSERT_IS_TRUE(ok);
+    std::cout << "Coriolis Matrix" << std::endl;
+    ASSERT_IS_TRUE(ok);
+    VectorDynSize C_nu(6 + dynComp.getNrOfDegreesOfFreedom());
+    toEigen(C_nu) = toEigen(coriolisMatrix) * toEigen(nu_with_l_sole_base);
+    std::cout << "C*nu: " << toEigen(C_nu).transpose() << std::endl;
+    ASSERT_EQUAL_VECTOR(baseForceAndJointTorques_with_l_foot_base.jointTorques(),
+                        toEigen(C_nu).tail(dynComp.getNrOfDegreesOfFreedom()));
+    ASSERT_EQUAL_VECTOR(baseForceAndJointTorques_with_l_foot_base.baseWrench(),
+                        toEigen(C_nu).head(6));
 }
 
 void testFloatingBaseFrameConsistencyAllRepresentations(std::string modelName)
