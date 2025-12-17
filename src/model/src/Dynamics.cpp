@@ -428,10 +428,16 @@ bool CoriolisMatrixAlgorithm(const Model& model,
         LinkIndex visitedLinkIndex = visitedLink->getIndex();
         LinkConstPtr parentLink = traversal.getParentLinkFromLinkIndex(visitedLinkIndex);
 
+        std::cout << "----------------------------------------" << std::endl;
+        std::cout << "traversal element: " << traversalEl << std::endl;
+        std::cout << "Processing link index " << visitedLinkIndex << " - link name: " << model.getLinkName(visitedLinkIndex) << std::endl;
+        std::cout << "Parent link index " << parentLink->getIndex() << " - link name: " << model.getLinkName(parentLink->getIndex()) << std::endl;
+
         if (visitedLinkIndex)
         {
             // the visited link is NOT the base link
             IJointConstPtr toParentJoint = traversal.getParentJointFromLinkIndex(visitedLinkIndex);
+            std::cout << "Joint name: " << model.getJointName(toParentJoint->getIndex()) << std::endl;
             if (toParentJoint->getNrOfDOFs() > 0)
             { // is NOT a fixed joint
 
