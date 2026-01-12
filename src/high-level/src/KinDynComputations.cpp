@@ -2632,48 +2632,14 @@ void KinDynComputations::KinDynComputationsPrivateAttributes::
     //
     // with (b_v_a,b)x being the 6x6 matrix associated to the cross product with the spatial
     // velocity of the base expressed in body-fixed coordinates.
+    //
+    // This procedure is applied twice:
+    // 1) First, if needed, to transform from base link to base frame (in this case b_v_a,b is null)
+    // 2) Second, to express the coriolis in the desired representation
 
     Transform A_T_B; // newFrame_H_B
     Twist vel_for_derivative; // B_v_newFrame,B
-
-    if (m_frameVelRepr == BODY_FIXED_REPRESENTATION)
-    {
-        if (m_isFloatingBaseFrame)
-        {
-            // body-fixed with an additional frame of the link as floating base
-            // The frame is fixed to the link, so in the body-fixed frame of the link,
-            // it has no relative velocity
-            A_T_B = m_baseLinkToBaseFrame.inverse();
-            Vector3 zero_linvel, zero_ang_vel;
-            zero_linvel.zero();
-            zero_ang_vel.zero();
-            vel_for_derivative = Twist(zero_linvel, zero_ang_vel);
-
-        } else {
-            // body-fixed with base link frame as floating base - nothing to do
-            return;
-        }
-    } else if (m_frameVelRepr == INERTIAL_FIXED_REPRESENTATION)
-    {
-        A_T_B = m_pos.worldBasePos();
-        // For inertial-fixed representation, use full body-fixed velocity
-        vel_for_derivative = m_vel.baseVel();
-    } else
-    {
-        assert(m_frameVelRepr == MIXED_REPRESENTATION);
-        A_T_B = Transform(m_pos.worldBasePos().getRotation(), Position::Zero());
-        // For mixed representation, the MIXED frame origin is at the base,
-        // so only the angular part contributes to the derivative.
-        Vector3 zero_linvel;
-        zero_linvel.zero();
-        vel_for_derivative = Twist(zero_linvel, m_vel.baseVel().getAngularVec3());
-    }
-
     Matrix6x6 A_X_B, A_Xdot_B, B_X_A, B_Xdot_A;
-    A_X_B = A_T_B.asAdjointTransform();
-    B_X_A = A_T_B.inverse().asAdjointTransform();
-    toEigen(A_Xdot_B) = toEigen(A_X_B) * toEigen(vel_for_derivative.asCrossProductMatrix());
-    toEigen(B_Xdot_A) = -toEigen(B_X_A) * toEigen(A_Xdot_B) * toEigen(B_X_A);
 
     // Compute transformation matrices
     MatrixDynSize T, Tinv, Tinv_dot;
@@ -2684,6 +2650,74 @@ void KinDynComputations::KinDynComputationsPrivateAttributes::
     T.zero();
     Tinv.zero();
     Tinv_dot.zero();
+
+    // First, if needed, transform from base link to base frame
+    if (m_isFloatingBaseFrame)
+    {
+        A_T_B = m_baseLinkToBaseFrame.inverse();
+        A_X_B = A_T_B.asAdjointTransform();
+        B_X_A = A_T_B.inverse().asAdjointTransform();
+
+        // T
+        toEigen(T).block<6, 6>(0, 0) = toEigen(A_X_B);
+        toEigen(T).block(6, 6, ndofs, ndofs) = Eigen::MatrixXd::Identity(ndofs, ndofs);
+        // T inverse
+        toEigen(Tinv).block<6, 6>(0, 0) = toEigen(B_X_A);
+        toEigen(Tinv).block(6, 6, ndofs, ndofs) = Eigen::MatrixXd::Identity(ndofs, ndofs);
+        // Apply the transformation to the coriolis matrix
+        toEigen(coriolisMatrix) = toEigen(Tinv).transpose()*toEigen(coriolisMatrix) * toEigen(Tinv);
+    }
+
+    // Now express Coriolis in the desired representation
+    T.zero();
+    Tinv.zero();
+    Tinv_dot.zero();
+
+    if (m_frameVelRepr == BODY_FIXED_REPRESENTATION)
+    {
+        // nothing to do
+        return;
+    } else if (m_frameVelRepr == MIXED_REPRESENTATION)
+    {
+        if (m_isFloatingBaseFrame)
+        {
+            // mixed representation with an additional frame of the link as floating base
+            Transform world_T_baseFrame = m_pos.worldBasePos() * m_baseLinkToBaseFrame;
+            A_T_B = Transform(world_T_baseFrame.getRotation(), Position::Zero());
+            Twist vel_base_frame_inBaseFrame = m_baseLinkToBaseFrame.inverse() * m_vel.baseVel();
+            Vector3 zero_linvel;
+            zero_linvel.zero();
+            vel_for_derivative = Twist(zero_linvel, vel_base_frame_inBaseFrame.getAngularVec3());
+        } else
+        {
+            // mixed representation with base link frame as floating base
+            A_T_B = Transform(m_pos.worldBasePos().getRotation(), Position::Zero());
+            // For mixed representation, the MIXED frame origin is at the base,
+            // so only the angular part contributes to the derivative.
+            Vector3 zero_linvel;
+            zero_linvel.zero();
+            vel_for_derivative = Twist(zero_linvel, m_vel.baseVel().getAngularVec3());
+        }
+    } else
+    {
+        assert(m_frameVelRepr == INERTIAL_FIXED_REPRESENTATION);
+        if (m_isFloatingBaseFrame)
+        {
+            A_T_B = m_pos.worldBasePos() * m_baseLinkToBaseFrame;;
+            // For inertial-fixed representation, use full body-fixed velocity
+            vel_for_derivative = m_baseLinkToBaseFrame.inverse() * m_vel.baseVel();
+        } else
+        {
+            A_T_B = m_pos.worldBasePos();
+            // For inertial-fixed representation, use full body-fixed velocity
+            vel_for_derivative = m_vel.baseVel();
+        }
+    }
+
+    A_X_B = A_T_B.asAdjointTransform();
+    B_X_A = A_T_B.inverse().asAdjointTransform();
+    toEigen(A_Xdot_B) = toEigen(A_X_B) * toEigen(vel_for_derivative.asCrossProductMatrix());
+    toEigen(B_Xdot_A) = -toEigen(B_X_A) * toEigen(A_Xdot_B) * toEigen(B_X_A);
 
     toEigen(T).block<6, 6>(0, 0) = toEigen(A_X_B);
     toEigen(T).block(6, 6, ndofs, ndofs) = Eigen::MatrixXd::Identity(ndofs, ndofs);
